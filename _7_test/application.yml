@@ -1,0 +1,7 @@
+database:
+  uri: "mysql+pymysql://root:123456@127.0.0.1:3306/flask_board"
+  track_modifications: false
+
+jwt:
+  secret_key: "super-secret-key-change-me"
+  access_token_expires_hours: 1

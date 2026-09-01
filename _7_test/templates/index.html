@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>사내 지식 게시판</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 기본 스크롤바 디자인 심플하게 변경 */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen">
+
+    <!-- 상단 네비게이션 바 -->
+    <nav class="bg-slate-900 text-white shadow-md">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-16">
+            <div class="flex items-center gap-2 cursor-pointer" onclick="location.reload()">
+                <div class="w-4 h-4 bg-blue-500 rounded-sm"></div>
+                <span class="text-lg font-bold tracking-wider text-slate-100">SYSTEM BOARD</span>
+            </div>
+            
+            <div id="authGuest" class="flex items-center gap-4">
+                <button onclick="toggleModal('loginModal')" class="text-sm font-medium hover:text-blue-400 transition">로그인</button>
+                <button onclick="toggleModal('registerModal')" class="text-sm font-medium bg-blue-600 px-4 py-1.5 rounded hover:bg-blue-500 transition">회원가입</button>
+            </div>
+            
+            <div id="authMember" class="hidden flex items-center gap-6">
+                <span class="text-sm text-slate-300"><strong id="userNameDisplay" class="text-white"></strong> 님</span>
+                <button onclick="logout()" class="text-sm font-medium hover:text-red-400 transition">로그아웃</button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 메인 컨테이너 -->
+    <main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        <!-- 컨트롤 패널 (검색 및 글쓰기) -->
+        <div class="flex flex-col sm:flex-row justify-between items-center bg-white p-4 border border-slate-200 shadow-sm mb-6 rounded-sm">
+            <div class="flex w-full sm:w-1/2 gap-2 mb-4 sm:mb-0">
+                <input type="text" id="searchInput" placeholder="검색어를 입력하세요 (제목/내용)" class="border border-slate-300 px-3 py-2 w-full text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition">
+                <button onclick="searchPosts()" class="bg-slate-800 text-white px-5 py-2 text-sm hover:bg-slate-700 transition whitespace-nowrap">검색</button>
+            </div>
+            <button id="writeBtn" onclick="openWriteModal()" class="hidden bg-blue-600 text-white px-6 py-2 text-sm font-medium hover:bg-blue-700 transition whitespace-nowrap shadow-sm w-full sm:w-auto">새 게시글 작성</button>
+        </div>
+
+        <!-- 게시글 리스트 영역 -->
+        <div id="postList" class="space-y-4"></div>
+        
+        <!-- 페이징 더보기 -->
+        <div class="mt-8 text-center">
+            <button id="loadMoreBtn" onclick="loadPosts()" class="hidden bg-white border border-slate-300 text-slate-600 px-8 py-2 text-sm font-medium hover:bg-slate-50 transition shadow-sm">더 보기 (▼)</button>
+        </div>
+    </main>
+
+    <!-- ================= 모달 영역 ================= -->
+
+    <!-- 1. 로그인 모달 -->
+    <div id="loginModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white p-8 border border-slate-200 shadow-lg w-full max-w-sm rounded-sm relative">
+            <button onclick="toggleModal('loginModal')" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600">✕</button>
+            <h2 class="text-xl font-bold mb-6 text-slate-800 border-b pb-2">로그인</h2>
+            <input type="text" id="loginId" placeholder="아이디" class="border border-slate-300 px-3 py-2 w-full mb-4 text-sm focus:outline-none focus:border-blue-500">
+            <input type="password" id="loginPw" placeholder="비밀번호" class="border border-slate-300 px-3 py-2 w-full mb-6 text-sm focus:outline-none focus:border-blue-500">
+            <button onclick="login()" class="bg-slate-800 text-white w-full py-2 font-medium hover:bg-slate-700 transition">로그인</button>
+        </div>
+    </div>
+
+    <!-- 2. 회원가입 모달 -->
+    <div id="registerModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white p-8 border border-slate-200 shadow-lg w-full max-w-sm rounded-sm relative">
+            <button onclick="toggleModal('registerModal')" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600">✕</button>
+            <h2 class="text-xl font-bold mb-6 text-slate-800 border-b pb-2">회원가입</h2>
+            <input type="text" id="regId" placeholder="사용할 아이디" class="border border-slate-300 px-3 py-2 w-full mb-4 text-sm focus:outline-none focus:border-blue-500">
+            <input type="password" id="regPw" placeholder="사용할 비밀번호" class="border border-slate-300 px-3 py-2 w-full mb-6 text-sm focus:outline-none focus:border-blue-500">
+            <button onclick="register()" class="bg-blue-600 text-white w-full py-2 font-medium hover:bg-blue-700 transition">가입하기</button>
+        </div>
+    </div>
+
+    <!-- 3. 게시글 작성/수정 모달 -->
+    <div id="postModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white border border-slate-200 shadow-lg w-full max-w-2xl rounded-sm flex flex-col max-h-full">
+            <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+                <h2 id="postModalTitle" class="text-lg font-bold text-slate-800">게시글 작성</h2>
+                <button onclick="toggleModal('postModal')" class="text-slate-400 hover:text-slate-600 text-xl">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto">
+                <input type="hidden" id="editPostId" value="">
+                <input type="text" id="postTitle" placeholder="제목을 입력하세요." class="border border-slate-300 px-3 py-2 w-full mb-4 text-sm focus:outline-none focus:border-blue-500 font-medium">
+                <textarea id="postContent" placeholder="내용을 입력하세요." class="border border-slate-300 px-3 py-3 w-full h-64 text-sm focus:outline-none focus:border-blue-500 resize-none"></textarea>
+            </div>
+            <div class="p-4 border-t border-slate-200 flex justify-end gap-2 bg-slate-50">
+                <button onclick="toggleModal('postModal')" class="px-4 py-2 border border-slate-300 bg-white text-slate-600 text-sm font-medium hover:bg-slate-50 transition rounded-sm">취소</button>
+                <button onclick="submitPost()" class="px-6 py-2 bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition shadow-sm rounded-sm">저장</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 스크립트 로직 -->
+    <script>
+        let currentCursor = null;
+        let currentSearch = '';
+
+        // UI 모달 제어
+        function toggleModal(modalId) {
+            const modal = document.getElementById(modalId);
+            modal.classList.toggle('hidden');
+        }
+
+        // 헤더 토큰 생성
+        function getHeaders() {
+            const token = localStorage.getItem('token');
+            return token ? { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` } : { 'Content-Type': 'application/json' };
+        }
+
+        // 로그인 상태 체크 UI 변경
+        function checkAuth() {
+            const token = localStorage.getItem('token');
+            const username = localStorage.getItem('username');
+            if (token) {
+                document.getElementById('authGuest').classList.add('hidden');
+                document.getElementById('authMember').classList.remove('hidden');
+                document.getElementById('authMember').classList.add('flex');
+                document.getElementById('writeBtn').classList.remove('hidden');
+                document.getElementById('userNameDisplay').innerText = username;
+            } else {
+                document.getElementById('authGuest').classList.remove('hidden');
+                document.getElementById('authGuest').classList.add('flex');
+                document.getElementById('authMember').classList.add('hidden');
+                document.getElementById('authMember').classList.remove('flex');
+                document.getElementById('writeBtn').classList.add('hidden');
+            }
+        }
+
+        // 회원가입
+        async function register() {
+            const u = document.getElementById('regId').value;
+            const p = document.getElementById('regPw').value;
+            if(!u || !p) return alert('정보를 입력하세요.');
+            const res = await fetch('/api/register', { method: 'POST', headers: getHeaders(), body: JSON.stringify({username: u, password: p}) });
+            const data = await res.json();
+            alert(data.msg);
+            if(res.ok) {
+                toggleModal('registerModal');
+                document.getElementById('regId').value = '';
+                document.getElementById('regPw').value = '';
+            }
+        }
+
+        // 로그인
+        async function login() {
+            const u = document.getElementById('loginId').value;
+            const p = document.getElementById('loginPw').value;
+            if(!u || !p) return alert('정보를 입력하세요.');
+            const res = await fetch('/api/login', { method: 'POST', headers: getHeaders(), body: JSON.stringify({username: u, password: p}) });
+            if (res.ok) {
+                const data = await res.json();
+                localStorage.setItem('token', data.access_token);
+                localStorage.setItem('username', data.username);
+                checkAuth();
+                toggleModal('loginModal');
+                document.getElementById('loginId').value = '';
+                document.getElementById('loginPw').value = '';
+                loadPosts(true); // 로그인 후 권한 버튼 업데이트용 재로딩
+            } else {
+                alert('로그인 실패: 아이디 또는 비밀번호 오류');
+            }
+        }
+
+        // 로그아웃
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('username');
+            checkAuth();
+            loadPosts(true);
+        }
+
+        // 게시글 조회 (페이징)
+        async function loadPosts(reset = false) {
+            if (reset) { currentCursor = null; document.getElementById('postList').innerHTML = ''; }
+            
+            let url = `/api/posts?limit=5&search=${currentSearch}`;
+            if (currentCursor) url += `&cursor=${currentCursor}`;
+
+            const res = await fetch(url);
+            const data = await res.json();
+            
+            data.posts.forEach(post => {
+                const myUsername = localStorage.getItem('username');
+                let controlBtns = '';
+                if (myUsername === post.author) {
+                    controlBtns = `
+                        <div class="flex gap-3">
+                            <button onclick="openEditModal(${post.id}, '${post.title.replace(/'/g, "\\'")}', '${post.content.replace(/\n/g, '\\n').replace(/'/g, "\\'")}')" class="text-slate-500 hover:text-blue-600 text-sm font-medium transition">수정</button>
+                            <button onclick="deletePost(${post.id})" class="text-slate-500 hover:text-red-600 text-sm font-medium transition">삭제</button>
+                        </div>
+                    `;
+                }
+                
+                document.getElementById('postList').innerHTML += `
+                    <div class="bg-white border border-slate-200 shadow-sm p-5 hover:shadow-md transition">
+                        <div class="flex justify-between items-start mb-3 border-b border-slate-100 pb-3">
+                            <h2 class="text-lg font-bold text-slate-800">${post.title}</h2>
+                            <span class="text-xs text-slate-400 whitespace-nowrap ml-4">${post.created_at}</span>
+                        </div>
+                        <p class="text-slate-600 text-sm mb-4 whitespace-pre-wrap leading-relaxed">${post.content}</p>
+                        <div class="flex justify-between items-center mt-2">
+                            <div class="flex items-center gap-2">
+                                <div class="w-6 h-6 rounded-full bg-slate-200 flex justify-center items-center text-xs font-bold text-slate-500">${post.author.charAt(0)}</div>
+                                <span class="text-sm font-medium text-slate-700">${post.author}</span>
+                            </div>
+                            ${controlBtns}
+                        </div>
+                    </div>
+                `;
+            });
+
+            currentCursor = data.next_cursor;
+            document.getElementById('loadMoreBtn').classList.toggle('hidden', !currentCursor);
+        }
+
+        function searchPosts() {
+            currentSearch = document.getElementById('searchInput').value;
+            loadPosts(true);
+        }
+
+        // 모달 열기 (작성용)
+        function openWriteModal() {
+            document.getElementById('postModalTitle').innerText = '새 게시글 작성';
+            document.getElementById('editPostId').value = '';
+            document.getElementById('postTitle').value = '';
+            document.getElementById('postContent').value = '';
+            toggleModal('postModal');
+        }
+
+        // 모달 열기 (수정용)
+        function openEditModal(id, title, content) {
+            document.getElementById('postModalTitle').innerText = '게시글 수정';
+            document.getElementById('editPostId').value = id;
+            document.getElementById('postTitle').value = title;
+            document.getElementById('postContent').value = content;
+            toggleModal('postModal');
+        }
+
+        // 게시글 저장 (생성 또는 수정)
+        async function submitPost() {
+            const id = document.getElementById('editPostId').value;
+            const title = document.getElementById('postTitle').value;
+            const content = document.getElementById('postContent').value;
+            if(!title || !content) return alert('제목과 내용을 입력하세요.');
+
+            let url = '/api/posts';
+            let method = 'POST';
+
+            if (id) {
+                url = `/api/posts/${id}`;
+                method = 'PUT';
+            }
+
+            const res = await fetch(url, { method: method, headers: getHeaders(), body: JSON.stringify({title, content}) });
+            
+            if (res.ok) {
+                toggleModal('postModal');
+                loadPosts(true);
+            } else {
+                alert('인증 오류가 발생했습니다. 다시 로그인해주세요.');
+            }
+        }
+
+        // 게시글 삭제
+        async function deletePost(id) {
+            if(!confirm('정말 삭제하시겠습니까?')) return;
+            const res = await fetch(`/api/posts/${id}`, { method: 'DELETE', headers: getHeaders() });
+            if (res.ok) loadPosts(true);
+            else alert('권한이 없거나 오류가 발생했습니다.');
+        }
+
+        // 초기화 실행
+        checkAuth();
+        loadPosts(true);
+    </script>
+</body>
+</html>
