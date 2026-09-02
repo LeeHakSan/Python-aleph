@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>부산 테마여행 상세 정보</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 text-gray-800 min-h-screen flex flex-col">
+
+    <header class="bg-white shadow-sm sticky top-0 z-10">
+        <div class="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
+            <h1 class="text-xl font-bold text-indigo-600 cursor-pointer" onclick="location.href='/public-posts'">✨ 부산 테마여행 상세</h1>
+            <a href="/public-posts" class="text-sm bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg font-medium hover:bg-gray-200 transition">목록으로 돌아가기</a>
+        </div>
+    </header>
+
+    <main class="max-w-4xl mx-auto px-4 py-6 flex-1 w-full">
+        <div id="loading" class="text-center py-12 text-gray-500 bg-white rounded-xl shadow-sm">상세 정보를 불러오는 중입니다...</div>
+        
+        <div id="detail-container" class="bg-white p-6 rounded-xl shadow-sm space-y-6 hidden">
+            <!-- 1. 제목 -->
+            <div>
+                <span id="post-gugun" class="text-xs font-semibold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-600"></span>
+                <h1 id="post-title" class="text-2xl font-bold text-gray-900 mt-2"></h1>
+            </div>
+
+            <!-- 3 & 4. 썸네일 사진 및 원본 사진 영역 -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="space-y-2">
+                    <p class="text-xs font-medium text-gray-500">썸네일 사진 (MAIN_IMG_THUMB)</p>
+                    <img id="thumb-img" src="" alt="썸네일 이미지" class="w-full h-64 object-cover rounded-lg border border-gray-100" onerror="this.src='https://via.placeholder.com/400x300?text=No+Image'">
+                </div>
+                <div class="space-y-2">
+                    <p class="text-xs font-medium text-gray-500">원본 사진 (MAIN_IMG_NORMAL)</p>
+                    <img id="normal-img" src="" alt="원본 이미지" class="w-full h-64 object-cover rounded-lg border border-gray-100" onerror="this.src='https://via.placeholder.com/400x300?text=No+Image'">
+                </div>
+            </div>
+
+            <hr class="border-gray-100">
+
+            <!-- 2. 설명 -->
+            <div class="space-y-2">
+                <h3 class="text-sm font-bold text-gray-700">상세 내용 (ITEMCNTNTS)</h3>
+                <div id="post-content" class="text-sm text-gray-600 leading-relaxed whitespace-pre-line"></div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // 현재 URL 경로에서 마지막 UC_SEQ 번호 추출
+        const pathSegments = window.location.pathname.split('/');
+        const currentUcSeq = Number(pathSegments[pathSegments.length - 1]);
+
+        async function fetchDetailData() {
+            try {
+                const response = await fetch('/api/public/posts');
+                const data = await response.json();
+                const items = data.getRecommendedKr?.item || [];
+
+                // 일치하는 UC_SEQ 데이터 찾기
+                const targetItem = items.find(item => item.UC_SEQ === currentUcSeq);
+
+                document.getElementById('loading').style.display = 'none';
+
+                if (!targetItem) {
+                    document.querySelector('main').innerHTML = '<div class="text-center py-12 text-gray-400 bg-white rounded-xl shadow-sm">해당 데이터를 찾을 수 없습니다.</div>';
+                    return;
+                }
+
+                // 이미지 URL 절대 경로 처리 함수
+                function getAbsoluteUrl(url) {
+                    if (!url) return '';
+                    if (url.startsWith('/')) {
+                        return 'http://apis.data.go.kr' + url;
+                    }
+                    return url;
+                }
+
+                // 데이터 바인딩 (제목, 지역, 썸네일, 원본사진, 설명)
+                document.getElementById('post-gugun').innerText = targetItem.GUGUN_NM || '부산';
+                document.getElementById('post-title').innerText = targetItem.TITLE || '제목 없음';
+                document.getElementById('thumb-img').src = getAbsoluteUrl(targetItem.MAIN_IMG_THUMB);
+                document.getElementById('normal-img').src = getAbsoluteUrl(targetItem.MAIN_IMG_NORMAL);
+                document.getElementById('post-content').innerHTML = targetItem.ITEMCNTNTS || '상세 설명이 없습니다.';
+
+                document.getElementById('detail-container').classList.remove('hidden');
+            } catch (error) {
+                document.getElementById('loading').innerText = '상세 데이터를 불러오는 중 오류가 발생했습니다.';
+                console.error(error);
+            }
+        }
+
+        fetchDetailData();
+    </script>
+</body>
+</html>

@@ -8,20 +8,17 @@
 </head>
 <body class="bg-gray-50 text-gray-800 min-h-screen flex flex-col">
 
-    <!-- Navbar -->
     <header class="bg-white shadow-sm sticky top-0 z-10">
         <div class="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
-            <h1 class="text-xl font-bold text-indigo-600 cursor-pointer" onclick="resetAndLoad()">✨ 모던 게시판</h1>
-            <div id="auth-nav" class="flex items-center space-x-3">
-                <!-- 동적 렌더링 -->
+            <div class="flex items-center space-x-4">
+                <h1 class="text-xl font-bold text-indigo-600 cursor-pointer" onclick="resetAndLoad()">✨ 모던 게시판</h1>
+                <a href="/public-posts" class="text-sm bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg font-medium hover:bg-indigo-100 transition">부산 테마여행 (100건)</a>
             </div>
+            <div id="auth-nav" class="flex items-center space-x-3"></div>
         </div>
     </header>
 
-    <!-- Main Container -->
     <main class="max-w-4xl mx-auto px-4 py-6 flex-1 w-full">
-        
-        <!-- 검색 및 필터 바 -->
         <div class="bg-white p-4 rounded-xl shadow-sm mb-6 flex flex-col md:flex-row gap-3 justify-between items-center">
             <div class="flex gap-2 w-full md:w-auto">
                 <select id="filter-category" onchange="loadPosts(true)" class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
@@ -36,12 +33,8 @@
             <button id="write-btn" onclick="openModal()" class="hidden bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 transition w-full md:w-auto">글쓰기</button>
         </div>
 
-        <!-- 게시글 목록 -->
-        <div id="posts-container" class="space-y-4">
-            <!-- 동적 게시글 카드 -->
-        </div>
+        <div id="posts-container" class="space-y-4"></div>
 
-        <!-- 더보기 버튼 (커서 페이징) -->
         <div id="load-more-container" class="mt-6 text-center hidden">
             <button onclick="loadMorePosts()" class="bg-white border border-gray-300 px-6 py-2 rounded-lg text-sm font-medium hover:bg-gray-100 transition shadow-sm">더보기</button>
         </div>
@@ -83,7 +76,6 @@
         </div>
     </div>
 
-    <!-- JavaScript 로직 -->
     <script>
         let currentCursor = null;
         let isAuthModeLogin = true;
@@ -116,10 +108,11 @@
         async function loadPosts(reset = false) {
             const search = document.getElementById('search-input').value;
             const category = document.getElementById('filter-category').value;
+            const container = document.getElementById('posts-container');
             
             if (reset) {
                 currentCursor = null;
-                document.getElementById('posts-container').innerHTML = '';
+                container.innerHTML = '';
             }
 
             let url = `/api/posts?limit=5`;
@@ -127,43 +120,47 @@
             if (category) url += `&category=${encodeURIComponent(category)}`;
             if (currentCursor) url += `&cursor=${currentCursor}`;
 
-            const res = await fetch(url);
-            const data = await res.json();
+            try {
+                const res = await fetch(url);
+                if (!res.ok) throw new Error('데이터 요청 실패');
+                const data = await res.json();
 
-            const container = document.getElementById('posts-container');
-            if (data.posts.length === 0 && reset) {
-                container.innerHTML = `<div class="text-center py-12 text-gray-400 bg-white rounded-xl shadow-sm">게시글이 없습니다.</div>`;
-                document.getElementById('load-more-container').classList.add('hidden');
-                return;
-            }
+                if (data.posts.length === 0 && reset) {
+                    container.innerHTML = `<div class="text-center py-12 text-gray-400 bg-white rounded-xl shadow-sm">게시글이 없습니다.</div>`;
+                    document.getElementById('load-more-container').classList.add('hidden');
+                    return;
+                }
 
-            data.posts.forEach(post => {
-                const isOwner = currentUsername && post.author === currentUsername;
-                const div = document.createElement('div');
-                div.className = "bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition";
-                div.innerHTML = `
-                    <div class="flex justify-between items-start mb-2">
-                        <span class="text-xs font-semibold px-2.5 py-1 rounded-full ${post.category === '공지' ? 'bg-red-100 text-red-600' : 'bg-indigo-50 text-indigo-600'}">${post.category}</span>
-                        <span class="text-xs text-gray-400">작성자: ${post.author}</span>
-                    </div>
-                    <h3 class="text-lg font-bold text-gray-900 mb-1">${escapeHtml(post.title)}</h3>
-                    <p class="text-sm text-gray-600 whitespace-pre-line mb-4">${escapeHtml(post.content)}</p>
-                    ${isOwner ? `
-                        <div class="flex justify-end space-x-2">
-                            <button onclick="openEditModal(${post.id}, '${escapeAttr(post.title)}', '${escapeAttr(post.content)}', '${post.category}')" class="text-xs text-indigo-600 hover:underline">수정</button>
-                            <button onclick="deletePost(${post.id})" class="text-xs text-red-500 hover:underline">삭제</button>
+                data.posts.forEach(post => {
+                    const isOwner = currentUsername && post.author === currentUsername;
+                    const div = document.createElement('div');
+                    div.className = "bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition";
+                    div.innerHTML = `
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-xs font-semibold px-2.5 py-1 rounded-full ${post.category === '공지' ? 'bg-red-100 text-red-600' : 'bg-indigo-50 text-indigo-600'}">${post.category}</span>
+                            <span class="text-xs text-gray-400">작성자: ${post.author} | ${post.created_at}</span>
                         </div>
-                    ` : ''}
-                `;
-                container.appendChild(div);
-            });
+                        <h3 class="text-lg font-bold text-gray-900 mb-1">${escapeHtml(post.title)}</h3>
+                        <p class="text-sm text-gray-600 whitespace-pre-line mb-4">${escapeHtml(post.content)}</p>
+                        ${isOwner ? `
+                            <div class="flex justify-end space-x-2">
+                                <button onclick="openEditModal(${post.id}, '${escapeAttr(post.title)}', '${escapeAttr(post.content)}', '${post.category}')" class="text-xs text-indigo-600 hover:underline">수정</button>
+                                <button onclick="deletePost(${post.id})" class="text-xs text-red-500 hover:underline">삭제</button>
+                            </div>
+                        ` : ''}
+                    `;
+                    container.appendChild(div);
+                });
 
-            currentCursor = data.next_cursor;
-            const loadMore = document.getElementById('load-more-container');
-            if (data.has_more) {
-                loadMore.classList.remove('hidden');
-            } else {
-                loadMore.classList.add('hidden');
+                currentCursor = data.next_cursor;
+                const loadMore = document.getElementById('load-more-container');
+                if (data.has_more) {
+                    loadMore.classList.remove('hidden');
+                } else {
+                    loadMore.classList.add('hidden');
+                }
+            } catch (error) {
+                container.innerHTML = `<div class="text-center py-12 text-red-400 bg-white rounded-xl shadow-sm">서버 내부 에러 발생. Python 백엔드를 확인하세요.</div>`;
             }
         }
 
@@ -177,13 +174,13 @@
             loadPosts(false);
         }
 
-        // 인증 모달 제어
         function openAuthModal(isLogin) {
             isAuthModeLogin = isLogin;
             document.getElementById('modal-title').innerText = isLogin ? '로그인' : '회원가입';
             document.getElementById('modal-submit-btn').innerText = isLogin ? '로그인' : '가입하기';
             document.getElementById('auth-modal').classList.remove('hidden');
         }
+        
         function closeAuthModal() {
             document.getElementById('auth-modal').classList.add('hidden');
         }
@@ -227,7 +224,6 @@
             loadPosts(true);
         }
 
-        // 글 작성/수정 모달 제어
         function openModal() {
             document.getElementById('post-modal-title').innerText = '새 글 작성';
             document.getElementById('edit-post-id').value = '';
@@ -236,6 +232,7 @@
             document.getElementById('post-category').value = '일반';
             document.getElementById('post-modal').classList.remove('hidden');
         }
+        
         function openEditModal(id, title, content, category) {
             document.getElementById('post-modal-title').innerText = '글 수정';
             document.getElementById('edit-post-id').value = id;
@@ -244,6 +241,7 @@
             document.getElementById('post-category').value = category;
             document.getElementById('post-modal').classList.remove('hidden');
         }
+        
         function closePostModal() {
             document.getElementById('post-modal').classList.add('hidden');
         }
@@ -290,12 +288,12 @@
         }
 
         function escapeHtml(str) {
-            return str.replace(/[&<>'"]/g, 
+            return String(str || '').replace(/[&<>'"]/g, 
                 tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
             );
         }
         function escapeAttr(str) {
-            return str.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+            return String(str || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/\n/g, '\\n').replace(/\r/g, '');
         }
     </script>
 </body>

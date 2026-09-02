@@ -2,12 +2,12 @@ from flask import Flask, render_template, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import timedelta
+from datetime import timedelta, datetime
+import requests
 
 app = Flask(__name__)
 
-# MySQL 연결 설정 (Docker 환경)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:123456@localhost:3306/my_new_board_db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:123456@127.0.0.1:3306/my_new_board_db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_SECRET_KEY'] = 'super-secret-key-change-this'
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=2)
@@ -15,7 +15,6 @@ app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=2)
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
 
-# ----------------- Database Models -----------------
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
@@ -27,12 +26,12 @@ class Post(db.Model):
     content = db.Column(db.Text, nullable=False)
     category = db.Column(db.String(50), nullable=False, default='일반')
     author_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
     author = db.relationship('User', backref=db.backref('posts', lazy=True))
 
 with app.app_context():
     db.create_all()
 
-# ----------------- Auth Endpoints -----------------
 @app.route('/api/auth/register', methods=['POST'])
 def register():
     data = request.get_json()
@@ -55,30 +54,25 @@ def login():
     access_token = create_access_token(identity=str(user.id))
     return jsonify(access_token=access_token, username=user.username)
 
-# ----------------- Post Endpoints (RESTful) -----------------
 @app.route('/')
 def index():
     return render_template('index.html')
 
-# 목록 조회 (검색, 필터, 커서 기반 페이징)
 @app.route('/api/posts', methods=['GET'])
 def get_posts():
     cursor = request.args.get('cursor', type=int)
     limit = request.args.get('limit', default=5, type=int)
-    search = request.args.get('search', default='', type=int if False else str)
+    search = request.args.get('search', default='', type=str)
     category = request.args.get('category', default='', type=str)
 
     query = Post.query
 
-    # 카테고리 필터
     if category and category != '전체':
         query = query.filter(Post.category == category)
 
-    # 검색 기능 (제목 또는 내용)
     if search:
         query = query.filter((Post.title.like(f'%{search}%')) | (Post.content.like(f'%{search}%')))
 
-    # 커서 기반 페이징 (ID 내림차순 기준 이전 데이터 로드)
     if cursor:
         query = query.filter(Post.id < cursor)
 
@@ -99,7 +93,8 @@ def get_posts():
             "content": p.content,
             "category": p.category,
             "author": p.author.username,
-            "author_id": p.author_id
+            "author_id": p.author_id,
+            "created_at": p.created_at.strftime('%Y-%m-%d %H:%M') if p.created_at else ''
         })
 
     return jsonify({
@@ -108,7 +103,6 @@ def get_posts():
         "has_more": has_more
     })
 
-# 게시글 작성
 @app.route('/api/posts', methods=['POST'])
 @jwt_required()
 def create_post():
@@ -125,7 +119,6 @@ def create_post():
     db.session.commit()
     return jsonify({"msg": "게시글이 등록되었습니다."}), 201
 
-# 게시글 수정
 @app.route('/api/posts/<int:id>', methods=['PUT'])
 @jwt_required()
 def update_post(id):
@@ -143,7 +136,6 @@ def update_post(id):
     
     return jsonify({"msg": "수정되었습니다."})
 
-# 게시글 삭제
 @app.route('/api/posts/<int:id>', methods=['DELETE'])
 @jwt_required()
 def delete_post(id):
@@ -157,6 +149,37 @@ def delete_post(id):
     db.session.commit()
     
     return jsonify({"msg": "삭제되었습니다."})
+
+# ----------------- 공공 데이터 연동 (부산테마여행) -----------------
+PUBLIC_API_KEY = "e055bdf1da82d7c3e0280b58fbbb47acb22f76080045a196317f30d9b9e71cbb"
+PUBLIC_API_URL = "http://apis.data.go.kr/6260000/RecommendedService/getRecommendedKr"
+
+@app.route('/api/public/posts', methods=['GET'])
+def get_public_posts():
+    params = {
+        'serviceKey': PUBLIC_API_KEY,
+        'numOfRows': '100',
+        'pageNo': '1',
+        'resultType': 'json'
+    }
+    try:
+        response = requests.get(PUBLIC_API_URL, params=params, timeout=5)
+        if response.status_code == 200:
+            return response.json()
+        else:
+            return jsonify({"msg": "공공 API 호출 실패", "status": response.status_code}), 500
+    except requests.exceptions.Timeout:
+        return jsonify({"msg": "공공 API 응답 시간 초과 (Timeout)"}), 504
+    except Exception as e:
+        return jsonify({"msg": "서버 통신 에러 발생", "error": str(e)}), 500
+
+@app.route('/public-posts')
+def public_posts_page():
+    return render_template('public_posts.html')
+
+@app.route('/public-posts/<int:uc_seq>')
+def public_post_detail_page(uc_seq):
+    return render_template('public_detail.html', uc_seq=uc_seq)
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
