@@ -4,7 +4,10 @@ from flask_jwt_extended import JWTManager, create_access_token, jwt_required, ge
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import timedelta, datetime
 import requests
+import os
+from dotenv import load_dotenv
 
+load_dotenv()
 app = Flask(__name__)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:123456@127.0.0.1:3306/my_new_board_db'
@@ -151,7 +154,8 @@ def delete_post(id):
     return jsonify({"msg": "삭제되었습니다."})
 
 # ----------------- 공공 데이터 연동 (부산테마여행) -----------------
-PUBLIC_API_KEY = "e055bdf1da82d7c3e0280b58fbbb47acb22f76080045a196317f30d9b9e71cbb"
+
+PUBLIC_API_KEY = os.environ.get("BUSAN_THEME_API_KEY")
 PUBLIC_API_URL = "http://apis.data.go.kr/6260000/RecommendedService/getRecommendedKr"
 
 @app.route('/api/public/posts', methods=['GET'])
